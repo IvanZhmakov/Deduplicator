@@ -2,40 +2,50 @@ from pathlib import Path
 import shutil
 from utils import sha256
 
-def find_and_copy_uniques(source_dir, existing_dir, output_dir, progress_callback=None):
-    """
-    Сравнивает файлы в source_dir с existing_dir по sha256.
-    Копирует уникальные файлы в output_dir.
-    Возвращает количество скопированных файлов и список дубликатов.
-    """
-    source_dir = Path(source_dir)
-    existing_dir = Path(existing_dir)
-    output_dir = Path(output_dir)
-    output_dir.mkdir(exist_ok=True)
 
-    # Хеши существующих файлов
+def find_duplicates_within_folder(folder, progress_callback=None):
+    folder = Path(folder)
     hash_map = {}
-    existing_files = list(existing_dir.iterdir())
-    for i, f in enumerate(existing_files):
+    files = list(folder.iterdir())
+
+    for i, f in enumerate(files):
         if f.is_file():
-            hash_map[sha256(f)] = f
+            h = sha256(f)
+            if h not in hash_map:
+                hash_map[h] = []
+            hash_map[h].append(f)
         if progress_callback:
-            progress_callback(i + 1, len(existing_files))
+            progress_callback(i + 1, len(files))
 
-    # Сравнение новых файлов
     duplicates = []
-    copied = 0
-    new_files = list(source_dir.iterdir())
-    for i, f in enumerate(new_files):
-        if not f.is_file():
-            continue
-        h = sha256(f)
-        if h in hash_map:
-            duplicates.append((f, hash_map[h]))
-        else:
-            copied += 1
-            shutil.copy2(f, output_dir / f"clean_{copied}{f.suffix}")
-        if progress_callback:
-            progress_callback(i + 1, len(new_files))
+    for h, files in hash_map.items():
+        if len(files) > 1:
+            for f in files[1:]:
+                duplicates.append((f, files[0]))
 
-    return copied, duplicates
+    return duplicates
+
+
+def find_duplicates_across_folders(*folders, progress_callback=None):
+    hash_map = {}
+    all_files = []
+    for folder in folders:
+        all_files.extend(list(folder.iterdir()))
+
+    for i, f in enumerate(all_files):
+        if f.is_file():
+            h = sha256(f)
+            if h not in hash_map:
+                hash_map[h] = []
+            hash_map[h].append(f)
+        if progress_callback:
+            progress_callback(i + 1, len(all_files))
+
+    duplicates = []
+    for h, files in hash_map.items():
+        if len(files) > 1:
+            for f in files[1:]:
+                duplicates.append((f, files[0]))
+
+    return duplicates
+
